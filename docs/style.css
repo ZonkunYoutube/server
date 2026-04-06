@@ -1,0 +1,92 @@
+﻿:root {
+  --bg: #f3f5f8;
+  --panel: #ffffff;
+  --text: #1d2430;
+  --muted: #6b7585;
+  --ok: #128a4b;
+  --ng: #c0392b;
+  --border: #d8dee8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+  background: linear-gradient(135deg, #eef2f7, #f8fafc);
+  color: var(--text);
+}
+
+.container {
+  max-width: 720px;
+  margin: 40px auto;
+  padding: 0 16px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.8rem;
+}
+
+.subtitle {
+  color: var(--muted);
+  margin-top: 8px;
+}
+
+.status-card {
+  margin-top: 20px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 8px 24px rgba(10, 20, 30, 0.06);
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid #eef1f5;
+  gap: 12px;
+}
+
+.row:last-child {
+  border-bottom: none;
+}
+
+.label {
+  color: var(--muted);
+  min-width: 100px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.badge.online {
+  background: var(--ok);
+}
+
+.badge.offline {
+  background: var(--ng);
+}
+
+.message {
+  margin-top: 14px;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+@media (max-width: 600px) {
+  .row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

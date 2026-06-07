@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>サーバーステータス</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #fdfdfd;
+      --surface: #ffffff;
+      --ink: #333333;
+      --muted: #999999;
+      --line: #f0f0f0;
+      --green: #52d681;
+      --green-bg: #eefbf3;
+      --red: #ff5f5f;
+      --orange: #ffb340;
+      --unknown: #e0e0e0;
+      --shadow: 0 4px 20px rgba(0,0,0,0.04);
+      --radius: 8px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    /* ── Tab Navigation ── */
+    .tab-nav {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 32px;
+      padding-left: 24px;
+    }
+
+    .tab-btn {
+      padding: 8px 20px;
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 1.1rem;
+      font-weight: 700;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .tab-btn:hover {
+      color: var(--ink);
+    }
+
+    .tab-btn.active {
+      color: var(--ink);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .tab-btn.active::after {
+      content: '';
+      position: absolute;
+      bottom: -4px;
+      left: 20px;
+      right: 20px;
+      height: 3px;
+      background: var(--green);
+      border-radius: 2px;
+    }
+
+    /* ── Tab Content ── */
+    .tab-content {
+      display: none;
+      animation: fadeIn 0.5s ease both;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* ── Summary ── */
+    .summary {
+      background: var(--surface);
+      padding: 20px 24px;
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 40px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+
+    .summary.offline { color: var(--red); }
+    .summary-icon {
+      width: 20px;
+      height: 20px;
+      background: var(--green);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 12px;
+    }
+    .summary.offline .summary-icon { background: var(--red); }
+
+    /* ── Group ── */
+    .group { margin-bottom: 32px; }
+
+    .group-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      padding-left: 24px;
+      color: #444;
+    }
+
+    .group-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Service Row ── */
+    .service-row {
+      display: grid;
+      grid-template-columns: 70px 140px 1fr;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 24px;
+    }
+
+    .service-row + .service-row { border-top: 1px solid var(--line); }
+
+    .uptime-badge {
+      font-size: 11px;
+      font-weight: 700;
+      background: var(--green-bg);
+      color: var(--green);
+      padding: 4px 8px;
+      border-radius: 12px;
+      text-align: center;
+      white-space: nowrap;
+    }
+
+    .service-name {
+      font-weight: 500;
+      color: #555;
+    }
+
+    /* ── Bars ── */
+    .bars-container {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .bars {
+      display: grid;
+      grid-template-columns: repeat(var(--bar-count), 1fr);
+      gap: 3px;
+      height: 18px;
+    }
+
+    .bar {
+      background: var(--unknown);
+      border-radius: 2px;
+      border: none;
+      transition: transform 0.1s ease;
+    }
+    .bar:hover { transform: scaleY(1.3); }
+    .bar.online { background: var(--green); }
+    .bar.offline { background: var(--red); }
+    .bar.warning { background: var(--orange); }
+
+    .bar-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    /* ── Player Status ── */
+    .player-stats-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 32px 40px;
+    }
+
+    .player-count-main {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+    }
+
+    .player-count-value {
+      font-size: 3.5rem;
+      font-weight: 800;
+      color: var(--ink);
+      line-height: 1;
+    }
+
+    .player-count-unit {
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .info-item {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+
+    .info-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .info-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--ink);
+      margin-top: 4px;
+    }
+
+    .chart-container {
+      padding: 0 24px 24px 24px;
+      height: 300px;
+    }
+
+    /* ── Tooltip ── */
+    .tooltip {
+      position: fixed;
+      z-index: 100;
+      pointer-events: none;
+      background: rgba(0,0,0,0.85);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+    .tooltip.visible { opacity: 1; }
+
+    @media (max-width: 600px) {
+      body { padding: 20px 10px; }
+      .tab-nav { padding-left: 10px; gap: 4px; margin-bottom: 20px; }
+      .tab-btn { padding: 6px 12px; font-size: 1rem; }
+      .player-stats-header { padding: 24px; }
+      .player-count-value { font-size: 2.5rem; }
+      .chart-container { height: 200px; padding: 0 12px 12px 12px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <nav class="tab-nav">
+      <button class="tab-btn active" data-tab="server-status">サーバーステータス</button>
+      <button class="tab-btn" data-tab="player-status">プレイヤーステータス</button>
+    </nav>
+
+    <!-- Server Status Tab -->
+    <div id="server-status" class="tab-content active">
+      <section class="summary" id="summary">
+        <div class="summary-icon">✓</div>
+        <span id="summaryText">すべてのサービスが稼働中</span>
+      </section>
+      <div id="statusGroups"></div>
+    </div>
+
+    <!-- Player Status Tab -->
+    <div id="player-status" class="tab-content">
+      <section class="group">
+        <div class="group-card">
+          <div class="player-stats-header">
+            <div class="player-count-main">
+              <span class="player-count-value" id="playerCountNumber">-</span>
+              <span class="player-count-unit">Players</span>
+            </div>
+            <div class="info-item">
+              <span class="info-label">Peak</span>
+              <span class="info-value" id="peakCount">0</span>
+            </div>
+          </div>
+          <div class="chart-container">
+            <canvas id="playerChart"></canvas>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="tooltip" id="tooltip"></div>
+
+  <script>
+    const DEFAULT_API_BASE = "https://playerlistzonsever.duckdns.org";
+    const HISTORY_MINUTES = 60;
+    const SERVER_REFRESH_MS = 60000;
+    const PLAYER_REFRESH_MS = 5000; 
+    const params = new URLSearchParams(window.location.search);
+    const apiBase = (params.get("api") || DEFAULT_API_BASE).replace(/\/$/, "");
+
+    const GROUPS = [
+      { title: "全体", services: [{ key: "__custom_overall", label: "全体" }] },
+      { title: "Minecraft", services: [
+          { key: "Lobby", label: "ロビー" },
+          { key: "folia", label: "サバイバルサーバー" },
+          { key: "survival2", label: "資源サーバー" },
+          { key: "PvP", label: "PvPサーバー" }
+      ]},
+      { title: "Proxy", services: [{ key: "Velocity", label: "Velocity" }] },
+      { title: "API", services: [
+          { key: "__site_api", label: "ここのサイトのAPI" },
+          { key: "MCXboxBroadcast", label: "MCXboxBroadcast" }
+      ]},
+      { title: "Mojang", services: [
+          { key: "MojangAPI", label: "Mojang API" },
+          { key: "MojangSessionServer", label: "Mojang Session Server" },
+          { key: "MinecraftServicesAPI", label: "Minecraft Services API" }
+      ]}
+    ];
+
+    const CRITICAL_KEYS = ["Lobby","folia","survival2","PvP","Velocity","__site_api","MojangAPI","MojangSessionServer","MinecraftServicesAPI"];
+
+    let latestPayload = null;
+    let playerChart = null;
+
+    document.querySelectorAll(".tab-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+        btn.classList.add("active");
+        document.getElementById(btn.dataset.tab).classList.add("active");
+        if (btn.dataset.tab === "player-status" && playerChart) {
+          setTimeout(() => playerChart.resize(), 50);
+        }
+      });
+    });
+
+    function formatPercent(v) {
+      if (v == null) return "--%";
+      const p = v * 100;
+      return (p >= 99.995 ? "100" : p.toFixed(2)) + "%";
+    }
+
+    function renderServer(payload) {
+      latestPayload = payload;
+      const byKey = new Map(payload.services.map(s => [s.key, s]));
+      const critical = CRITICAL_KEYS.map(k => byKey.get(k)).filter(Boolean);
+      const hasDamage = critical.some(s => s.current === "offline");
+
+      const summary = document.getElementById("summary");
+      summary.className = "summary" + (hasDamage ? " offline" : "");
+      summary.querySelector(".summary-icon").textContent = hasDamage ? "!" : "✓";
+      document.getElementById("summaryText").textContent = hasDamage ? "一部のサービスに問題があります" : "すべてのサービスが稼働中";
+
+      const orderedServices = [];
+      document.getElementById("statusGroups").innerHTML = GROUPS.map(group => {
+        const rows = group.services.map(item => {
+          const service = byKey.get(item.key);
+          if (!service) return "";
+          const index = orderedServices.push(service) - 1;
+          const bars = service.bars.slice(-HISTORY_MINUTES);
+          return `
+            <div class="service-row">
+              <div class="uptime-badge">${formatPercent(service.uptime)}</div>
+              <div class="service-name">${item.label}</div>
+              <div class="bars-container">
+                <div class="bars" style="--bar-count:${bars.length}">
+                  ${bars.map((b, bi) => `<button class="bar ${b.status}" data-si="${index}" data-bi="${payload.services[0].bars.length - HISTORY_MINUTES + bi}"></button>`).join('')}
+                </div>
+                <div class="bar-labels"><span>1h</span><span>現在</span></div>
+              </div>
+            </div>
+          `;
+        }).join("");
+        return rows ? `<section class="group"><h2 class="group-title">${group.title}</h2><div class="group-card">${rows}</div></section>` : "";
+      }).join("");
+      latestPayload.orderedServices = orderedServices;
+    }
+
+    async function refreshServerStatus() {
+      try {
+        const res = await fetch(apiBase + "/api/history?minutes=180&_=" + Date.now());
+        renderServer(await res.json());
+      } catch (e) { console.error(e); }
+    }
+
+    async function refreshPlayerStatus() {
+      try {
+        const res = await fetch(apiBase + "/api/player-history?minutes=60&_=" + Date.now());
+        const data = await res.json();
+        
+        document.getElementById("playerCountNumber").textContent = data.current.playerCount;
+        document.getElementById("peakCount").textContent = data.peakPlayerCount;
+        
+        updatePlayerChart(data.records);
+      } catch (e) { console.error(e); }
+    }
+
+    function updatePlayerChart(records) {
+      const ctx = document.getElementById("playerChart");
+      if (!ctx) return;
+
+      const labels = records.map(r => {
+        const date = new Date(r.checkedAt);
+        return date.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      });
+      const data = records.map(r => r.playerCount);
+
+      if (playerChart) {
+        playerChart.data.labels = labels;
+        playerChart.data.datasets[0].data = data;
+        playerChart.update('none');
+      } else {
+        playerChart = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: labels,
+            datasets: [{
+              data: data,
+              borderColor: "#52d681",
+              backgroundColor: "rgba(82, 214, 129, 0.05)",
+              borderWidth: 3,
+              fill: true,
+              tension: 0.4,
+              pointRadius: 0,
+              pointHoverRadius: 6,
+              pointHoverBackgroundColor: "#52d681",
+              pointHoverBorderColor: "#fff",
+              pointHoverBorderWidth: 3
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { intersect: false, mode: 'index' },
+            plugins: {
+              legend: { display: false },
+              tooltip: {
+                backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                titleColor: '#333',
+                bodyColor: '#52d681',
+                bodyFont: { weight: 'bold', size: 14 },
+                borderColor: '#eee',
+                borderWidth: 1,
+                padding: 12,
+                displayColors: false,
+                callbacks: { label: (ctx) => `${ctx.parsed.y} Players` }
+              }
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: { stepSize: 1, color: "#bbb", font: { size: 10 } },
+                grid: { color: "#f5f5f5" },
+                border: { display: false }
+              },
+              x: {
+                ticks: { display: false },
+                grid: { display: false },
+                border: { display: false }
+              }
+            }
+          }
+        });
+      }
+    }
+
+    const tooltip = document.getElementById("tooltip");
+    document.addEventListener("mousemove", e => {
+      const bar = e.target.closest(".bar");
+      if (!bar) { tooltip.classList.remove("visible"); return; }
+      const s = latestPayload.orderedServices[bar.dataset.si];
+      const b = s.bars[bar.dataset.bi];
+      const label = b.status === "online" ? "稼働中" : b.status === "warning" ? "注意" : b.status === "offline" ? "停止中" : "確認中";
+      tooltip.innerHTML = `<strong>${s.label}</strong>: ${label}<br>${new Date(b.from).toLocaleTimeString()}`;
+      tooltip.classList.add("visible");
+      tooltip.style.left = (e.clientX + 12) + "px";
+      tooltip.style.top = (e.clientY + 12) + "px";
+    });
+
+    refreshServerStatus();
+    refreshPlayerStatus();
+    setInterval(refreshServerStatus, SERVER_REFRESH_MS);
+    setInterval(refreshPlayerStatus, PLAYER_REFRESH_MS);
+  </script>
+</body>
+</html>
